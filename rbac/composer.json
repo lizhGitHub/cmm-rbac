@@ -1,0 +1,20 @@
+{
+    "name": "cmm/rbac",
+    "description": "茶猫猫rbac扩展包.",
+    "keywords": ["middleware", "router", "log"],
+    "license": "MIT",
+    "type": "library",
+    "version": "1.0.0",
+    "require": {
+        "php": "^7.2.5"
+    },
+    "require-dev": {
+        "laravel/lumen-framework": "^7.0",
+        "phpunit/phpunit": "^8.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "CMM\\RBAC\\": "src/"
+        }
+    }
+}
