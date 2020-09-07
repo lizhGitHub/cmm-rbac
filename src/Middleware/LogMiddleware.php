@@ -11,7 +11,6 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use function GuzzleHttp\Psr7\parse_query;
 
 class LogMiddleware
 {
