@@ -6,13 +6,17 @@
     "type": "library",
     "version": "1.0.0",
     "require": {
-        "php": "^7.2.5"
+        "php": "^7.2.5",
+        "guzzlehttp/guzzle": "^6.5.2"
     },
     "require-dev": {
         "laravel/lumen-framework": "^7.0",
         "phpunit/phpunit": "^8.5"
     },
     "autoload": {
+        "files": [
+            "src/helper.php"
+        ],
         "psr-4": {
             "CMM\\RBAC\\": "src/"
         }

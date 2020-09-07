@@ -3,49 +3,55 @@
 namespace CMM\RBAC\Middleware;
 
 use Closure;
+use CMM\RBAC\Events\LogEvent;
+use CMM\RBAC\Facades\User;
+use CMM\RBAC\Traits\HttpRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use function GuzzleHttp\Psr7\parse_query;
 
 class LogMiddleware
 {
-    /**
-     * 模型名称
-     *
-     * @var string
-     */
-    private $name;
+    use HttpRequest;
 
     /**
-     * 原值
-     *
      * @var array
      */
-    private $original = [];
-
-    /**
-     * 改变后的值
-     *
-     * @var array
-     */
-    private $changes = [];
+    private $data = [];
 
     /**
      * Handle an incoming request.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \Closure  $next
+     * @param \Illuminate\Http\Request $request
+     * @param \Closure $next
      * @return mixed
      */
-    public function handle($request, Closure $next)
+    public function handle(Request $request, Closure $next)
     {
-        Event::listen(['eloquent.created: *', 'eloquent.updated: *', 'eloquent.deleted: *'], function ($event, $model) {
-            $model = $model[0];
+        //监听模型事件
+        Event::listen(['eloquent.created: *', 'eloquent.updated: *', 'eloquent.deleted: *'], function ($event, $payload) {
+            $payload = $payload[0];
+            //没有意义的更新
+            if (Str::is('eloquent.updated: *', $event) && !$payload->getDirty()) {
+                return;
+            }
 
-            $this->name = $model->desc ?: $event;
-            $this->original = $model->getOriginal();
-            $this->changes = $model->getDirty();
+            $this->data[] = [
+                'desc' => $payload->desc ?: $event,
+                'original' => $payload->getOriginal(),
+                'changes' => $payload->getDirty(),
+            ];
+        });
+        //自定义事件监听，查询构造器操作数据库需手动触发事件
+        Event::listen(LogEvent::class, function (LogEvent $event) {
+            $this->data[] = [
+                'desc' => $event->desc,
+                'original' => $event->original,
+                'changes' => $event->changes,
+            ];
         });
 
         return $next($request);
@@ -56,11 +62,48 @@ class LogMiddleware
      *
      * @param Request $request
      */
-    public function terminate($request)
+    public function terminate(Request $request)
     {
-        Log::info( '请求路径：' . $request->path());
-        Log::info( '模型：' . $this->name);
-        Log::info( '原始值：', Arr::only($this->original, array_keys($this->changes)));
-        Log::info( '更新值：', $this->changes);
+        if (!count($this->data)) {
+            return;
+        }
+
+        $routeName = $request->route()[1]['desc'] ?? '';
+
+        $route = $request->path();
+
+        $config = config('rbac');
+
+        $token = $request->header('token') ?? $request->cookie('token');
+
+        $param = [
+            'app_key' => $config['app_key'],
+            'route_path' => $route,
+            'route_name' => $routeName,
+            'data' => $this->data,
+        ];
+
+        $param['sign'] = rbac_sign($param, $config['app_secret']);
+
+        $url = $config['rbac_back_url'] . Arr::get($config, 'api.log');
+
+        $result = [];
+
+        try {
+            $result = $this->postJson($url, $param, ['token' => $token]);
+
+            if (!isset($result['code']) || $result['code'] != 0) {
+                throw new \Exception('同步rbac日志失败，' . $result['msg'] ?? '');
+            }
+        } catch (\Exception $exception) {
+            Log::error($exception->getMessage());
+            Log::info('请求rbac返回', $result ?? []);
+            //换取用户id
+            $param['user_id'] = User::user()['id'];
+
+            unset($param['token']);
+            //rbac请求失败，本地保存
+            Log::info('操作日志', $param);
+        }
     }
 }
