@@ -98,7 +98,7 @@ class LogMiddleware
             Log::error($exception->getMessage());
             Log::info('请求rbac返回', $result ?? []);
             //换取用户id
-            $param['user_id'] = User::user()['id'];
+            $param['user_id'] = User::user()['id'] ?? 0;
 
             unset($param['token']);
             //rbac请求失败，本地保存
