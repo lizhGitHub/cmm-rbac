@@ -39,7 +39,7 @@ class LogMiddleware
             }
 
             $this->data[] = [
-                'desc' => $payload->desc ?: $event,
+                'desc' => $event,
                 'original' => $payload->getOriginal(),
                 'changes' => $payload->getDirty(),
             ];
